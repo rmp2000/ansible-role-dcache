@@ -1,0 +1,59 @@
+---
+- name: Choose a unique persistence test file
+  ansible.builtin.set_fact:
+    dcache_persistence_file: ".ansible-persistence-{{ ansible_date_time.epoch }}"
+
+- name: Verify file survival across a dCache restart
+  block:
+    - name: Upload the persistence test file
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ dcache_webdav_port }}{{ dcache_namespace_path }}/{{ dcache_persistence_file }}"
+        method: PUT
+        user: "{{ dcache_user }}"
+        password: "{{ dcache_password }}"
+        force_basic_auth: true
+        ca_path: /etc/dcache/tls/hostcert.pem
+        body: "dCache persistence verification"
+        status_code: [200, 201, 204]
+      no_log: true
+
+    - name: Restart the dCache domain for the persistence test
+      ansible.builtin.systemd:
+        name: "dcache@{{ dcache_domain }}.service"
+        state: restarted
+
+    - name: Read the same file after restart
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ dcache_webdav_port }}{{ dcache_namespace_path }}/{{ dcache_persistence_file }}"
+        user: "{{ dcache_user }}"
+        password: "{{ dcache_password }}"
+        force_basic_auth: true
+        ca_path: /etc/dcache/tls/hostcert.pem
+        return_content: true
+        status_code: 200
+      register: dcache_persistence_read
+      until: dcache_persistence_read.status == 200
+      retries: 24
+      delay: 5
+      no_log: true
+
+    - name: Assert persisted file contents
+      ansible.builtin.assert:
+        that:
+          - dcache_persistence_read.content == 'dCache persistence verification'
+      no_log: true
+
+    - name: Report persistence verification
+      ansible.builtin.debug:
+        msg: "DCACHE_PERSISTENCE_OK: uploaded file survived a dCache service restart."
+  always:
+    - name: Remove only the persistence test file
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ dcache_webdav_port }}{{ dcache_namespace_path }}/{{ dcache_persistence_file }}"
+        method: DELETE
+        user: "{{ dcache_user }}"
+        password: "{{ dcache_password }}"
+        force_basic_auth: true
+        ca_path: /etc/dcache/tls/hostcert.pem
+        status_code: [200, 204, 404]
+      no_log: true

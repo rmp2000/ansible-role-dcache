@@ -1,0 +1,12 @@
+---
+- name: Test dCache persistence across service restart
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    dcache_password: integration-test-only-password
+  tasks:
+    - name: Exercise persistence using the installed service
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+        tasks_from: persistence

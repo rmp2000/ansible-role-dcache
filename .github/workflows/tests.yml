@@ -24,6 +24,8 @@ jobs:
           set -o pipefail
           ansible-playbook -i localhost, tests/install.yml | tee /tmp/dcache-repeat.log
           grep -Eq 'changed=0 +unreachable=0 +failed=0' /tmp/dcache-repeat.log
+      - name: Verify persistence across restart
+        run: ansible-playbook -i localhost, tests/persistence.yml
       - name: Show service logs on failure
         if: failure()
         run: sudo journalctl -u dcache@dCacheDomain --no-pager -n 120

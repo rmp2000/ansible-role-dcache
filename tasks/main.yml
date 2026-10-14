@@ -71,6 +71,17 @@
     - "{{ dcache_pool_path }}/data"
     - "{{ dcache_pool_path }}/meta"
 
+- name: Select the supported Java runtime for dCache
+  ansible.builtin.lineinfile:
+    path: /etc/default/dcache
+    regexp: '^export JAVA='
+    line: 'export JAVA={{ dcache_java_home }}/bin/java'
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart dCache
+
 - name: Configure database password file
   ansible.builtin.template:
     src: pgpass.j2
