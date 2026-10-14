@@ -1,0 +1,11 @@
+---
+roles:
+  - name: postgresql
+    src: https://github.com/rmp2000/ansible-role-postgresql.git
+    scm: git
+    version: 255211cded8db851ea916914dfe4f3a7b9ce6dee
+collections:
+  - name: community.postgresql
+    version: '>=2.4.0,<4.0.0'
+  - name: community.general
+    version: '>=7.0.0,<8.0.0'

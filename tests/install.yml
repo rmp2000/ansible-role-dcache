@@ -1,0 +1,12 @@
+---
+- name: Install the standalone dCache role
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    dcache_password: integration-test-only-password
+    dcache_database_password: integration-test-only-db-password
+  tasks:
+    - name: Apply the role from this checkout
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."

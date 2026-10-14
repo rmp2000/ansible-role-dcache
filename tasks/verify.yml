@@ -1,0 +1,15 @@
+---
+- name: Verify HTTPS authentication and file upload download deletion
+  ansible.builtin.command:
+    argv: [/usr/local/bin/dcache-verify]
+    stdin: "{{ {'endpoint': 'https://127.0.0.1:' ~ dcache_webdav_port ~ dcache_namespace_path, 'user': dcache_user, 'password': dcache_password, 'ca': '/etc/dcache/tls/hostcert.pem'} | to_json }}"
+  register: dcache_smoke
+  no_log: true
+  changed_when: false
+  retries: 12
+  delay: 10
+  until: dcache_smoke.rc == 0
+
+- name: Report successful dCache verification
+  ansible.builtin.debug:
+    msg: "DCACHE_SMOKE_OK: authenticated HTTPS upload, byte-for-byte download, unauthorized access rejection and deletion passed."

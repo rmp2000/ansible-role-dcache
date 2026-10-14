@@ -1,0 +1,266 @@
+---
+- name: Validate supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '22.04'
+      - dcache_webdav_port | int > 0
+      - dcache_webdav_port | int < 65536
+      - dcache_user is match('^[a-zA-Z][a-zA-Z0-9_-]*$')
+      - dcache_namespace_path is match('^/[a-zA-Z0-9_-]+$')
+      - dcache_database_name is match('^[a-zA-Z][a-zA-Z0-9_]*$')
+      - dcache_database_user is match('^[a-zA-Z][a-zA-Z0-9_]*$')
+
+- name: Validate required secrets
+  ansible.builtin.assert:
+    that:
+      - dcache_password | length >= 12
+      - dcache_database_password | length >= 12
+  no_log: true
+
+- name: Configure local PostgreSQL using the existing role
+  ansible.builtin.include_role:
+    name: postgresql
+  vars:
+    postgresql_version: "{{ dcache_postgresql_version }}"
+    postgresql_database: "{{ dcache_database_name }}"
+    postgresql_user: "{{ dcache_database_user }}"
+    postgresql_password: "{{ dcache_database_password }}"
+    postgresql_port: "{{ dcache_database_port }}"
+    postgresql_listen_addresses: 127.0.0.1
+    postgresql_pg_hba_address: 127.0.0.1/32
+  when: dcache_manage_database | bool
+
+- name: Install dCache prerequisites
+  ansible.builtin.apt:
+    name:
+      - openjdk-17-jre-headless
+      - openssl
+      - python3-passlib
+      - python3-psycopg2
+      - rsyslog
+      - ssl-cert
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Download the pinned official dCache package
+  ansible.builtin.get_url:
+    url: "{{ dcache_package_url }}"
+    dest: "/var/cache/dcache-{{ dcache_version }}.deb"
+    checksum: "{{ dcache_package_checksum }}"
+    mode: '0644'
+
+- name: Install dCache
+  ansible.builtin.apt:
+    deb: "/var/cache/dcache-{{ dcache_version }}.deb"
+  register: dcache_package
+  notify: Restart dCache
+
+- name: Create configuration and pool directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: dcache
+    group: dcache
+    mode: '0750'
+  loop:
+    - /etc/dcache/tls
+    - /etc/dcache/tls/ca
+    - "{{ dcache_pool_path }}"
+    - "{{ dcache_pool_path }}/data"
+    - "{{ dcache_pool_path }}/meta"
+
+- name: Configure database password file
+  ansible.builtin.copy:
+    content: "{{ dcache_database_host }}:{{ dcache_database_port }}:{{ dcache_database_name }}:{{ dcache_database_user }}:{{ dcache_database_password | replace('\\', '\\\\') | replace(':', '\\:') }}\n"
+    dest: /etc/dcache/pgpass
+    owner: dcache
+    group: dcache
+    mode: '0600'
+  no_log: true
+  notify: Restart dCache
+
+- name: Configure dCache and its single domain
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: dcache
+    mode: '0640'
+  loop:
+    - {src: dcache.conf.j2, dest: /etc/dcache/dcache.conf}
+    - {src: layout.conf.j2, dest: /etc/dcache/layouts/standalone.conf}
+  notify: Restart dCache
+
+- name: Configure authentication
+  ansible.builtin.copy:
+    content: |
+      auth sufficient htpasswd
+      map sufficient multimap
+      account requisite banfile
+      session requisite authzdb
+    dest: /etc/dcache/gplazma.conf
+    owner: root
+    group: dcache
+    mode: '0640'
+  notify: Restart dCache
+
+- name: Configure WebDAV password
+  community.general.htpasswd:
+    path: /etc/dcache/htpasswd
+    name: "{{ dcache_user }}"
+    password: "{{ dcache_password }}"
+    crypt_scheme: apr_md5_crypt
+    owner: root
+    group: dcache
+    mode: '0640'
+  no_log: true
+
+- name: Configure identity mapping
+  ansible.builtin.copy:
+    content: "username:{{ dcache_user }} uid:{{ dcache_user_uid }} gid:{{ dcache_user_gid }},true\n"
+    dest: /etc/dcache/multi-mapfile
+    owner: root
+    group: dcache
+    mode: '0640'
+  notify: Restart dCache
+
+- name: Ensure the ban file exists without changing existing rules
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/dcache/ban.conf
+    force: false
+    owner: root
+    group: dcache
+    mode: '0640'
+
+- name: Ensure the grid security directory exists
+  ansible.builtin.file:
+    path: /etc/grid-security
+    state: directory
+    mode: '0755'
+
+- name: Configure WebDAV session permissions
+  ansible.builtin.copy:
+    content: |
+      version 2.1
+      authorize {{ dcache_user }} read-write {{ dcache_user_uid }} {{ dcache_user_gid }} {{ dcache_namespace_path }} /
+    dest: /etc/grid-security/storage-authzdb
+    owner: root
+    group: dcache
+    mode: '0640'
+  notify: Restart dCache
+
+- name: Create the standalone HTTPS certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:3072
+      - -nodes
+      - -days
+      - '365'
+      - -keyout
+      - /etc/dcache/tls/hostkey.pem
+      - -out
+      - /etc/dcache/tls/hostcert.pem
+      - -subj
+      - /CN=dcache
+      - -addext
+      - "subjectAltName=DNS:localhost,IP:127.0.0.1,{{ ansible_all_ipv4_addresses | map('regex_replace', '^(.*)$', 'IP:\\1') | join(',') }}"
+    creates: /etc/dcache/tls/hostcert.pem
+  notify: Restart dCache
+
+- name: Set HTTPS credential permissions
+  ansible.builtin.file:
+    path: "/etc/dcache/tls/{{ item }}"
+    owner: dcache
+    group: dcache
+    mode: '0640'
+  loop:
+    - hostkey.pem
+    - hostcert.pem
+
+- name: Obtain the certificate subject hash
+  ansible.builtin.command: openssl x509 -in /etc/dcache/tls/hostcert.pem -noout -hash
+  register: dcache_certificate_hash
+  changed_when: false
+
+- name: Trust the standalone certificate in dCache
+  ansible.builtin.file:
+    src: /etc/dcache/tls/hostcert.pem
+    dest: "/etc/dcache/tls/ca/{{ dcache_certificate_hash.stdout }}.0"
+    state: link
+
+- name: Check the namespace database
+  community.postgresql.postgresql_query:
+    login_host: "{{ dcache_database_host }}"
+    login_port: "{{ dcache_database_port }}"
+    login_user: "{{ dcache_database_user }}"
+    login_password: "{{ dcache_database_password }}"
+    login_db: "{{ dcache_database_name }}"
+    query: SELECT to_regclass('public.t_inodes') AS namespace
+  register: dcache_database_check
+  no_log: true
+  changed_when: false
+
+- name: Initialize or update the dCache schema
+  ansible.builtin.command: dcache database update
+  when: dcache_database_check.query_result[0].namespace is none or dcache_package.changed
+  changed_when: true
+  notify: Restart dCache
+
+- name: Check the user namespace directory
+  ansible.builtin.command:
+    argv: [chimera, stat, "{{ dcache_namespace_path }}"]
+  register: dcache_namespace_check
+  changed_when: false
+  failed_when: false
+
+- name: Create the user namespace directory
+  ansible.builtin.command:
+    argv: [chimera, mkdir, "{{ dcache_namespace_path }}"]
+  when: dcache_namespace_check.rc != 0
+  changed_when: true
+
+- name: Assign the namespace directory to the WebDAV user
+  ansible.builtin.command:
+    argv: [chimera, chown, "{{ dcache_user_uid }}:{{ dcache_user_gid }}", "{{ dcache_namespace_path }}"]
+  when: dcache_namespace_check.rc != 0
+  changed_when: true
+
+- name: Apply configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable dCache at boot
+  ansible.builtin.systemd:
+    name: dcache.target
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Ensure the dCache domain is running
+  ansible.builtin.systemd:
+    name: "dcache@{{ dcache_domain }}.service"
+    state: started
+
+- name: Wait for the HTTPS WebDAV port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ dcache_webdav_port }}"
+    timeout: 180
+
+- name: Install the WebDAV verification tool
+  ansible.builtin.copy:
+    src: verify_webdav.py
+    dest: /usr/local/bin/dcache-verify
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Verify the deployed storage service
+  ansible.builtin.include_tasks: verify.yml
+  when: dcache_verify | bool

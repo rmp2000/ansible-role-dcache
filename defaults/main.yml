@@ -1,0 +1,23 @@
+---
+dcache_version: "10.2.28"
+dcache_package_url: "https://www.dcache.org/old/downloads/1.9/repo/10.2/dcache_{{ dcache_version }}-1_all.deb"
+dcache_package_checksum: "sha256:abc459d28525f4565be9c1438bd78d7303e0f81d3e610df2f5212e737692c531"
+dcache_domain: dCacheDomain
+dcache_manage_database: true
+dcache_database_host: 127.0.0.1
+dcache_database_port: 5432
+dcache_database_name: chimera
+dcache_database_user: dcache
+dcache_database_password: ""
+dcache_postgresql_version: "14"
+dcache_webdav_port: 2880
+dcache_user: dcacheuser
+dcache_password: ""
+dcache_user_uid: 1000
+dcache_user_gid: 1000
+dcache_namespace_path: /data
+dcache_pool_name: pool1
+dcache_pool_path: /srv/dcache/pool1
+dcache_heap: 1024m
+dcache_direct_memory: 512m
+dcache_verify: true

@@ -1,0 +1,12 @@
+# Managed by Ansible
+dcache.layout = standalone
+dcache.java.memory.heap = {{ dcache_heap }}
+dcache.java.memory.direct = {{ dcache_direct_memory }}
+dcache.db.host = {{ dcache_database_host }}:{{ dcache_database_port }}
+dcache.db.user = {{ dcache_database_user }}
+dcache.db.password.file = /etc/dcache/pgpass
+chimera.db.name = {{ dcache_database_name }}
+dcache.authn.hostcert.cert = /etc/dcache/tls/hostcert.pem
+dcache.authn.hostcert.key = /etc/dcache/tls/hostkey.pem
+dcache.authn.capath = /etc/dcache/tls/ca
+

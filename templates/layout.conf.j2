@@ -1,0 +1,26 @@
+# Managed by Ansible
+dcache.enable.space-reservation = false
+
+[{{ dcache_domain }}]
+dcache.broker.scheme = none
+[{{ dcache_domain }}/zookeeper]
+[{{ dcache_domain }}/pnfsmanager]
+pnfsmanager.default-retention-policy = REPLICA
+pnfsmanager.default-access-latency = ONLINE
+[{{ dcache_domain }}/cleaner-disk]
+[{{ dcache_domain }}/poolmanager]
+[{{ dcache_domain }}/billing]
+[{{ dcache_domain }}/gplazma]
+[{{ dcache_domain }}/webdav]
+webdav.net.port = {{ dcache_webdav_port }}
+webdav.authn.protocol = https
+webdav.authn.accept-client-cert = false
+webdav.authn.basic = true
+webdav.redirect.on-read = false
+webdav.redirect.on-write = false
+
+[{{ dcache_domain }}/pool]
+pool.name = {{ dcache_pool_name }}
+pool.path = {{ dcache_pool_path }}
+pool.wait-for-files = ${pool.path}/data
+
