@@ -222,7 +222,7 @@
 
 - name: Check the user namespace directory
   ansible.builtin.command:
-    argv: [chimera, stat, "{{ dcache_namespace_path }}"]
+    argv: [chimera, ls, "{{ dcache_namespace_path }}"]
   register: dcache_namespace_check
   changed_when: false
   failed_when: false
@@ -230,14 +230,21 @@
 - name: Create the user namespace directory
   ansible.builtin.command:
     argv: [chimera, mkdir, "{{ dcache_namespace_path }}"]
-  when: dcache_namespace_check.rc != 0
+  when: "'total ' not in dcache_namespace_check.stdout"
   changed_when: true
 
 - name: Assign the namespace directory to the WebDAV user
   ansible.builtin.command:
     argv: [chimera, chown, "{{ dcache_user_uid }}:{{ dcache_user_gid }}", "{{ dcache_namespace_path }}"]
-  when: dcache_namespace_check.rc != 0
+  when: "'total ' not in dcache_namespace_check.stdout"
   changed_when: true
+
+- name: Verify the namespace directory was created
+  ansible.builtin.command:
+    argv: [chimera, ls, "{{ dcache_namespace_path }}"]
+  register: dcache_namespace_after
+  changed_when: false
+  failed_when: "'total ' not in dcache_namespace_after.stdout"
 
 - name: Apply configuration changes
   ansible.builtin.meta: flush_handlers

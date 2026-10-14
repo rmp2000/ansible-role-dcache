@@ -14,6 +14,8 @@
         force_basic_auth: true
         ca_path: /etc/dcache/tls/hostcert.pem
         body: "dCache persistence verification"
+        headers:
+          Content-Type: application/octet-stream
         status_code: [200, 201, 204]
       no_log: true
 

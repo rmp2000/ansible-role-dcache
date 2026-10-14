@@ -20,6 +20,8 @@ def main():
 
     def request(method, body=None, authenticate=True):
         headers = {'Authorization': 'Basic ' + token} if authenticate else {}
+        if body is not None:
+            headers['Content-Type'] = 'application/octet-stream'
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
             with opener.open(req, timeout=60) as response:
