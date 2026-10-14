@@ -29,6 +29,12 @@ when required; retaining file contents also requires retaining the namespace
 database. This initial single-machine deployment does not provide replication
 or high availability.
 
+The role checks the filesystem behind the pool parent directory before installing
+dCache and rejects sizes below 1 GiB. Set `dcache_require_pool_mount: true` when
+the parent must be a separate mount. The TOSCA recipe enables this check and
+explicitly selects the additional disk device for its Ramses image. CI exercises
+the guard with a real 1 MiB temporary filesystem.
+
 ## Verification
 
 `tests/install.yml` installs the role and tests HTTPS upload/download, exact byte

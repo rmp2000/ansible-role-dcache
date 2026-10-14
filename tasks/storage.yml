@@ -1,0 +1,23 @@
+---
+- name: Ensure the pool parent directory exists
+  ansible.builtin.file:
+    path: "{{ dcache_pool_path | dirname }}"
+    state: directory
+    mode: '0755'
+
+- name: Inspect the actual pool filesystem
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - -c
+      - "import json,os,sys; p=sys.argv[1]; s=os.statvfs(p); print(json.dumps({'size':s.f_blocks*s.f_frsize,'mount':os.path.ismount(p)}))"
+      - "{{ dcache_pool_path | dirname }}"
+  register: dcache_pool_filesystem
+  changed_when: false
+
+- name: Reject an incorrectly mounted or undersized pool filesystem
+  ansible.builtin.assert:
+    that:
+      - (dcache_pool_filesystem.stdout | from_json).size | int >= dcache_pool_minimum_size | int
+      - not (dcache_require_pool_mount | bool) or (dcache_pool_filesystem.stdout | from_json).mount
+    fail_msg: "Invalid pool filesystem: check the attached disk device and mount before deploying dCache."

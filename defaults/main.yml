@@ -18,6 +18,8 @@ dcache_user_gid: 1000
 dcache_namespace_path: /data
 dcache_pool_name: pool1
 dcache_pool_path: /srv/dcache/pool1
+dcache_require_pool_mount: false
+dcache_pool_minimum_size: 1073741824
 dcache_heap: 1024m
 dcache_direct_memory: 512m
 dcache_java_home: "/usr/lib/jvm/java-17-openjdk-{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"

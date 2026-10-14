@@ -1,0 +1,50 @@
+---
+- name: Reject a small filesystem incorrectly mounted as storage
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    - name: Allocate an isolated mount point for the regression test
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: dcache-storage-test-
+      register: storage_test_dir
+
+    - name: Check the guard against a real one MiB filesystem
+      block:
+        - name: Mount the isolated small test filesystem
+          ansible.builtin.command:
+            argv: [mount, -t, tmpfs, -o, size=1m, tmpfs, "{{ storage_test_dir.path }}"]
+          changed_when: true
+
+        - name: Exercise the storage validation
+          block:
+            - name: Validate the deliberately undersized pool
+              ansible.builtin.include_role:
+                name: "{{ playbook_dir }}/.."
+                tasks_from: storage
+              vars:
+                dcache_pool_path: "{{ storage_test_dir.path }}/pool1"
+                dcache_require_pool_mount: true
+          rescue:
+            - name: Confirm the expected storage error
+              ansible.builtin.assert:
+                that:
+                  - "'Invalid pool filesystem' in ansible_failed_result.msg"
+            - name: Record successful rejection
+              ansible.builtin.set_fact:
+                storage_test_rejected: true
+
+        - name: Assert the invalid filesystem was rejected
+          ansible.builtin.assert:
+            that: storage_test_rejected | default(false)
+            success_msg: "DCACHE_STORAGE_GUARD_OK: rejected a one MiB pool filesystem."
+      always:
+        - name: Unmount only the isolated test filesystem
+          ansible.builtin.command:
+            argv: [umount, "{{ storage_test_dir.path }}"]
+          changed_when: true
+        - name: Remove the empty test mount point
+          ansible.builtin.file:
+            path: "{{ storage_test_dir.path }}"
+            state: absent

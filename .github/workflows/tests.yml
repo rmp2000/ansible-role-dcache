@@ -17,6 +17,8 @@ jobs:
         run: ansible-galaxy install -r requirements.yml
       - name: Check playbook syntax
         run: ansible-playbook --syntax-check tests/install.yml
+      - name: Reject an incorrectly sized storage mount
+        run: ansible-playbook -i localhost, tests/storage.yml
       - name: Install and test dCache
         run: ansible-playbook -i localhost, tests/install.yml
       - name: Repeat installation and assert idempotence

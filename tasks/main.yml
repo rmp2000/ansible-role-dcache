@@ -18,6 +18,9 @@
       - dcache_database_password | length >= 12
   no_log: true
 
+- name: Validate the storage filesystem before installing dCache
+  ansible.builtin.include_tasks: storage.yml
+
 - name: Configure local PostgreSQL using the existing role
   ansible.builtin.include_role:
     name: postgresql
