@@ -82,16 +82,6 @@
     mode: '0644'
   notify: Restart dCache
 
-- name: Configure database password file
-  ansible.builtin.template:
-    src: pgpass.j2
-    dest: /etc/dcache/pgpass
-    owner: dcache
-    group: dcache
-    mode: '0600'
-  no_log: true
-  notify: Restart dCache
-
 - name: Configure dCache and its single domain
   ansible.builtin.template:
     src: "{{ item.src }}"
@@ -102,7 +92,13 @@
   loop:
     - {src: dcache.conf.j2, dest: /etc/dcache/dcache.conf}
     - {src: layout.conf.j2, dest: /etc/dcache/layouts/standalone.conf}
+  no_log: true
   notify: Restart dCache
+
+- name: Remove the superseded role-managed password file
+  ansible.builtin.file:
+    path: /etc/dcache/pgpass
+    state: absent
 
 - name: Configure authentication
   ansible.builtin.copy:
