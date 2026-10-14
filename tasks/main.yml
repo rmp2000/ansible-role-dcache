@@ -72,8 +72,8 @@
     - "{{ dcache_pool_path }}/meta"
 
 - name: Configure database password file
-  ansible.builtin.copy:
-    content: "{{ dcache_database_host }}:{{ dcache_database_port }}:{{ dcache_database_name }}:{{ dcache_database_user }}:{{ dcache_database_password | replace('\\', '\\\\') | replace(':', '\\:') }}\n"
+  ansible.builtin.template:
+    src: pgpass.j2
     dest: /etc/dcache/pgpass
     owner: dcache
     group: dcache
@@ -170,7 +170,7 @@
       - -subj
       - /CN=dcache
       - -addext
-      - "subjectAltName=DNS:localhost,IP:127.0.0.1,{{ ansible_all_ipv4_addresses | map('regex_replace', '^(.*)$', 'IP:\\1') | join(',') }}"
+      - "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:{{ ansible_all_ipv4_addresses | join(',IP:') }}"
     creates: /etc/dcache/tls/hostcert.pem
   notify: Restart dCache
 
